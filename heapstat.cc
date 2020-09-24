@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cmath>
 
-#define HEAPSTAT_NO_OVERRIDE
+#define HEAPSTAT_DISABLE
 #include "heapstat.hh"
 
 static void format(char* buf, double num)

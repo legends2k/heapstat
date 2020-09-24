@@ -24,7 +24,7 @@ void heapstat_free(void* ptr, const char* desc);
 size_t heapstat();
 }
 
-#ifndef HEAPSTAT_NO_OVERRIDE
+#ifndef HEAPSTAT_DISABLE
 #define malloc(sz) heapstat_malloc((sz), SPOT(__FILE__, __LINE__))
 #define realloc(ptr, sz) heapstat_realloc((ptr), (sz), SPOT(__FILE__, __LINE__))
 #define free(ptr) heapstat_free((ptr), SPOT(__FILE__, __LINE__))
