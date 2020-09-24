@@ -125,8 +125,8 @@ size_t heapstat()
     // if (statsMap.empty()) return 0;
 
     puts("--------------------------------------------------------------");
-    puts("Allocations | Total Size (B) | Location                       ");
-    puts("--------------------------------------------------------------");
+    puts("      Count |       Size (B) | Location                       ");
+    puts("==============================================================");
     for (auto kv : statsMap) {
         string key = kv.first;
         _Stats val = kv.second;
@@ -138,7 +138,8 @@ size_t heapstat()
     char strsum[24] = "                       ";
     format(strsum, sum);
     // human_readable(strsum, sum);
-    printf("Leaked %s B total", strsum);
+    printf("%11lu | %14s | %s\n", ptrMap.size(), strsum, "total");
+    // printf("Leaked %s B total", strsum);
     // if (sum >= 1024) printf(" (%luB)", sum);
     puts("");
     return sum;
