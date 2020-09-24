@@ -44,21 +44,21 @@ int main()
 Results in:
 ```
 WARNING
-freeing unknown or freed pointer 0x7feb08008000
+freeing unknown or freed pointer 0x7fcab0008000
   at heapstat_test.cc:14
 
 WARNING
-freeing unknown or freed pointer 0x7ffee69fcf50
+freeing unknown or freed pointer 0x7ffeeb1adfb0
   at heapstat_test.cc:18
 
-HEAP ALLOCATIONS NOT FREED:
+12 HEAP ALLOCATIONS LEAKED
 --------------------------------------------------------------
-Allocations | Total Size (B) | Location
+      Count |       Size (B) | Location
+==============================================================
+         10 |         81'920 | heapstat_test.cc:10
+          1 |              8 | heapstat_test.cc:20
+          1 |            334 | heapstat_test.cc:24
 --------------------------------------------------------------
-         10 |          81920 | heapstat_test.cc:10
-          1 |              8 | heapstat_test.cc:21
-          1 |            334 | heapstat_test.cc:23
---------------------------------------------------------------
-Leaked 82262 bytes total
+         12 |         82'262 | total
 ```
 

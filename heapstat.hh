@@ -6,8 +6,6 @@
 //    - returns (size_t): total bytes leaked over all allocations so far
 // ---------------------------------------------------------------------------
 // You need a compiler with C++11 support.
-// When you don't want to use heapstat anymore, just comment out the include.
-// IT IS NOT RECOMMENDED TO USE HEAPSTAT IN PRODUCTION CODE DUE TO OVERHEAD.
 // ---------------------------------------------------------------------------
 //                      (C) 2020 The Jet Language Team <sushpa@jetpilots.dev>
 // ---------------------------------------------------------------------------
