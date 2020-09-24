@@ -69,12 +69,14 @@ void heapstat_free(void* ptr)
     if (!ptr) return;
     void* ret = (void*)((char*)ptr - sizeof(_PtrHeader));
 
-    _PtrHeader* buf = (_PtrHeader*)ret;
-    _PtrHeader *next = buf->next, *prev = buf->prev;
-    if (buf->prev) buf->prev->next = next;
-    if (buf->next) buf->next->prev = prev;
-    _heapTotal -= buf->size;
-    free(buf);
+    _PtrHeader* head = (_PtrHeader*)ret;
+    _PtrHeader *next = head->next, *prev = head->prev;
+    if (head->prev) head->prev->next = next;
+    if (head->next) head->next->prev = prev;
+    if (head == lastHeader) lastHeader = prev;
+    if (head == startHeader) startHeader = next;
+    _heapTotal -= head->size;
+    free(head);
 }
 
 size_t heapstat()
