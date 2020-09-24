@@ -2,9 +2,50 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <cmath>
 
 #define HEAPSTAT_NO_OVERRIDE
 #include "heapstat.hh"
+
+static void format(char* buf, double num)
+{
+    int digits = log10(num);
+    buf += digits + (digits / 3) + 1;
+    *buf-- = 0;
+    int i = 0;
+    while (num > 1) {
+        i++;
+        int d = ((size_t)num) % 10;
+        num /= 10;
+        *buf-- = d + 48;
+        if (!(i % 3)) *buf-- = '\'';
+    }
+}
+
+// display first "digits" many digits of number plus unit (kilo-exabytes)
+static int human_readable(char* buf, double num)
+{
+    size_t snap = 0;
+    size_t orig = num;
+    int unit = 0;
+    while (num >= 1000) {
+        num /= 1024;
+        unit++;
+    }
+    int len;
+    if (unit && num < 100.0)
+        len = snprintf(buf, 8, "%.3g", num);
+    else
+        len = snprintf(buf, 8, "%d", (int)num);
+
+    unit = "\0kMGTPEZY"[unit];
+
+    if (unit) buf[len++] = unit;
+    buf[len++] = 'B';
+    buf[len] = 0;
+
+    return len;
+}
 
 struct _PtrInfo {
     size_t size;
@@ -70,9 +111,9 @@ size_t heapstat()
 {
     size_t sum = 0;
     if (ptrMap.empty()) return 0;
+    printf("\n%lu HEAP ALLOCATIONS LEAKED\n", ptrMap.size());
 
     map<string, _Stats> statsMap;
-
     for (auto kv : ptrMap) {
         const char* desc = kv.second.desc;
         auto d = statsMap.find(desc);
@@ -81,19 +122,25 @@ size_t heapstat()
         statsMap[desc].count++;
         sum += kv.second.size;
     }
-    if (statsMap.empty()) return 0;
+    // if (statsMap.empty()) return 0;
 
-    puts("\nHEAP ALLOCATIONS NOT FREED:");
     puts("--------------------------------------------------------------");
     puts("Allocations | Total Size (B) | Location                       ");
     puts("--------------------------------------------------------------");
     for (auto kv : statsMap) {
         string key = kv.first;
         _Stats val = kv.second;
-        printf("%11lu | %14lu | %s\n", val.count, val.sum, key.c_str());
+        char valSumH[24] = "                       ";
+        format(valSumH, val.sum);
+        printf("%11lu | %14s | %s\n", val.count, valSumH, key.c_str());
     }
     puts("--------------------------------------------------------------");
-    printf("Leaked %lu bytes total\n", sum);
+    char strsum[24] = "                       ";
+    format(strsum, sum);
+    // human_readable(strsum, sum);
+    printf("Leaked %s B total", strsum);
+    // if (sum >= 1024) printf(" (%luB)", sum);
+    puts("");
     return sum;
 }
 
