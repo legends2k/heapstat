@@ -31,6 +31,7 @@ static size_t _heapTotal = 0;
 extern "C" {
 
 static _PtrHeader* lastHeader = NULL;
+static _PtrHeader* startHeader = NULL;
 
 static void addHeader(size_t size, const char* desc, void* ret)
 {
@@ -39,7 +40,10 @@ static void addHeader(size_t size, const char* desc, void* ret)
     head->size = size;
     head->desc = desc;
     head->prev = lastHeader;
-    if (lastHeader) lastHeader->next = head;
+    if (lastHeader)
+        lastHeader->next = head;
+    else
+        startHeader = head;
     head->next = NULL;
 
     // update lastHeader only at the end!
@@ -76,17 +80,17 @@ void heapstat_free(void* ptr)
 size_t heapstat()
 {
     size_t gcount = 0;
-    if (!lastHeader->prev) return 0;
+    if (!startHeader) return 0;
     printf("\nHEAP ALLOCATIONS LEAKED:\n");
     puts("--------------------------------------------------------------");
     puts("      Count |       Size (B) | Location                       ");
     puts("==============================================================");
-    for (_PtrHeader* head = lastHeader; head; head = head->prev) {
+    for (_PtrHeader* head = startHeader; head; head = head->next) {
         if (head->visited) continue;
         const char* desc = head->desc;
 
         size_t size = 0, count = 0;
-        for (_PtrHeader* inner = head; inner; inner = inner->prev) {
+        for (_PtrHeader* inner = head; inner; inner = inner->next) {
             // since strings are compile time uniqd the ptrs must be equal
             if (inner->desc != desc) continue;
             inner->visited = 1;
@@ -99,7 +103,7 @@ size_t heapstat()
         format(valSumH, size);
         printf("%11lu | %14s | %s\n", count, valSumH, desc);
     }
-    for (_PtrHeader* head = lastHeader; head; head = head->prev)
+    for (_PtrHeader* head = startHeader; head; head = head->next)
         head->visited = 0;
 
     puts("--------------------------------------------------------------");
