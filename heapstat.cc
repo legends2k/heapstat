@@ -1,7 +1,5 @@
 #include <cstdlib>
-#include <map>
-#include <string>
-#include <iostream>
+#include <cstdio>
 #include <cmath>
 
 #define HEAPSTAT_DISABLE
@@ -9,7 +7,7 @@
 
 static void format(char* buf, double num)
 {
-    int digits = log10(num);
+    int digits = log10(num + 1);
     buf += digits + (digits / 3) + 1;
     *buf-- = 0;
     int i = 0;
@@ -22,127 +20,94 @@ static void format(char* buf, double num)
     }
 }
 
-// display first "digits" many digits of number plus unit (kilo-exabytes)
-static int human_readable(char* buf, double num)
-{
-    size_t snap = 0;
-    size_t orig = num;
-    int unit = 0;
-    while (num >= 1000) {
-        num /= 1024;
-        unit++;
-    }
-    int len;
-    if (unit && num < 100.0)
-        len = snprintf(buf, 8, "%.3g", num);
-    else
-        len = snprintf(buf, 8, "%d", (int)num);
-
-    unit = "\0kMGTPEZY"[unit];
-
-    if (unit) buf[len++] = unit;
-    buf[len++] = 'B';
-    buf[len] = 0;
-
-    return len;
-}
-
-struct _PtrInfo {
-    size_t size;
+struct _PtrHeader {
+    size_t size : 63, visited : 1;
     const char* desc;
+    _PtrHeader *next, *prev;
 };
 
-struct _Stats {
-    size_t count, sum;
-};
-
-using std::map;
-using std::string;
-
-static map<void*, _PtrInfo> ptrMap;
 static size_t _heapTotal = 0;
 
 extern "C" {
 
+static _PtrHeader* lastHeader = NULL;
+
+static void addHeader(size_t size, const char* desc, void* ret)
+{
+    _heapTotal += size;
+    _PtrHeader* head = (_PtrHeader*)ret;
+    head->size = size;
+    head->desc = desc;
+    head->prev = lastHeader;
+    if (lastHeader) lastHeader->next = head;
+    head->next = NULL;
+
+    // update lastHeader only at the end!
+    lastHeader = head;
+}
 void* heapstat_malloc(size_t size, const char* desc)
 {
-    void* ret = malloc(size);
-    if (ret) {
-        _heapTotal += size;
-        _PtrInfo info = { //
-            .size = size,
-            .desc = desc
-        };
-        ptrMap[ret] = info;
-    }
-    return ret;
+    void* ret = malloc(size + sizeof(_PtrHeader));
+    if (ret) { addHeader(size, desc, ret); }
+    return (void*)((char*)ret + sizeof(_PtrHeader));
 }
 
 void* heapstat_realloc(void* ptr, size_t size, const char* desc)
 {
-    void* ret = realloc(ptr, size);
-    if (ret) {
-        auto item = ptrMap.find(ptr);
-        if (item != ptrMap.end()) _heapTotal -= item->second.size;
-        _heapTotal += size;
-        _PtrInfo info = { //
-            .size = size,
-            .desc = desc
-        };
-        ptrMap[ret] = info;
-    }
-    return ret;
+    void* ret = (void*)((char*)ret - sizeof(_PtrHeader));
+    ret = realloc(ptr, size);
+    if (ret) { addHeader(size, desc, ret); }
+    return (void*)((char*)ret + sizeof(_PtrHeader));
 }
 
-void heapstat_free(void* ptr, const char* desc)
+void heapstat_free(void* ptr)
 {
-    auto item = ptrMap.find(ptr);
-    if (item != ptrMap.end()) {
-        free(ptr);
-        _heapTotal -= item->second.size;
-        ptrMap.erase(item);
-    } else if (desc and *desc != '/') {
-        printf("\nWARNING\nfreeing unknown or freed pointer %p\n  at %s\n", ptr,
-            desc);
-    }
+    if (!ptr) return;
+    void* ret = (void*)((char*)ptr - sizeof(_PtrHeader));
+
+    _PtrHeader* buf = (_PtrHeader*)ret;
+    _PtrHeader *next = buf->next, *prev = buf->prev;
+    if (buf->prev) buf->prev->next = next;
+    if (buf->next) buf->next->prev = prev;
+    _heapTotal -= buf->size;
+    free(buf);
 }
 
 size_t heapstat()
 {
-    size_t sum = 0;
-    if (ptrMap.empty()) return 0;
-    printf("\n%lu HEAP ALLOCATIONS LEAKED\n", ptrMap.size());
-
-    map<string, _Stats> statsMap;
-    for (auto kv : ptrMap) {
-        const char* desc = kv.second.desc;
-        auto d = statsMap.find(desc);
-        if (d == statsMap.end()) { statsMap[desc] = _Stats(); }
-        statsMap[desc].sum += kv.second.size;
-        statsMap[desc].count++;
-        sum += kv.second.size;
-    }
-    // if (statsMap.empty()) return 0;
-
+    size_t gcount = 0;
+    if (!lastHeader->prev) return 0;
+    printf("\nHEAP ALLOCATIONS LEAKED:\n");
     puts("--------------------------------------------------------------");
     puts("      Count |       Size (B) | Location                       ");
     puts("==============================================================");
-    for (auto kv : statsMap) {
-        string key = kv.first;
-        _Stats val = kv.second;
+    for (_PtrHeader* head = lastHeader; head; head = head->prev) {
+        if (head->visited) continue;
+        const char* desc = head->desc;
+
+        size_t size = 0, count = 0;
+        for (_PtrHeader* inner = head; inner; inner = inner->prev) {
+            // since strings are compile time uniqd the ptrs must be equal
+            if (inner->desc != desc) continue;
+            inner->visited = 1;
+            size += inner->size;
+            count++;
+            gcount++;
+        }
+
         char valSumH[24] = "                       ";
-        format(valSumH, val.sum);
-        printf("%11lu | %14s | %s\n", val.count, valSumH, key.c_str());
+        format(valSumH, size);
+        printf("%11lu | %14s | %s\n", count, valSumH, desc);
     }
+    for (_PtrHeader* head = lastHeader; head; head = head->prev)
+        head->visited = 0;
+
     puts("--------------------------------------------------------------");
     char strsum[24] = "                       ";
-    format(strsum, sum);
-    // human_readable(strsum, sum);
-    printf("%11lu | %14s | %s\n", ptrMap.size(), strsum, "total");
-    // printf("Leaked %s B total", strsum);
-    // if (sum >= 1024) printf(" (%luB)", sum);
+    format(strsum, _heapTotal);
+    printf("%11lu | %14s | %s\n", gcount, strsum, "total");
     puts("");
-    return sum;
+    return _heapTotal;
 }
 
 } // extern "C"

@@ -18,14 +18,14 @@
 extern "C" {
 void* heapstat_malloc(size_t size, const char* desc);
 void* heapstat_realloc(void* ptr, size_t size, const char* desc);
-void heapstat_free(void* ptr, const char* desc);
+void heapstat_free(void* ptr);
 size_t heapstat();
 }
 
 #ifndef HEAPSTAT_DISABLE
 #define malloc(sz) heapstat_malloc((sz), SPOT(__FILE__, __LINE__))
 #define realloc(ptr, sz) heapstat_realloc((ptr), (sz), SPOT(__FILE__, __LINE__))
-#define free(ptr) heapstat_free((ptr), SPOT(__FILE__, __LINE__))
+#define free(ptr) heapstat_free((ptr));
 inline void* operator new(size_t size, const char* desc)
 {
     return heapstat_malloc(size, desc);
@@ -34,9 +34,9 @@ inline void* operator new[](size_t size, const char* desc)
 {
     return heapstat_malloc(size, desc);
 }
-void operator delete(void* ptr) noexcept { heapstat_free(ptr, "/"); }
-void operator delete[](void* ptr) noexcept { heapstat_free(ptr, "/"); }
+void operator delete(void* ptr) throw() { heapstat_free(ptr); }
+void operator delete[](void* ptr) throw() { heapstat_free(ptr); }
 
 #define new new (SPOT(__FILE__, __LINE__))
-// #define delete delete (SPOT(__FILE__, __LINE__))
+
 #endif
