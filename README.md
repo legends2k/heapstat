@@ -2,7 +2,7 @@
 
 **Heapstat** keeps track of heap-allocated memory to detect leaks, double frees and deleting/freeing invalid pointers (to something not on the heap).
 
-It is a lightweight (<150 LOC) **drop-in** replacement for `malloc/realloc/free`, `new/delete`, and `new[]/delete[]`. Simply include the `heapstat.hh` header file in whichever source files you want to track for heap allocation or deallocation issues, and add the `heapstat.cc` file to your project and your build target(s).
+It is a lightweight, **drop-in** replacement for `malloc/realloc/free`, `new/delete`, and `new[]/delete[]`. Simply include the `heapstat.hh` header file in whichever source files you want to track for heap allocation or deallocation issues, and add the `heapstat.cc` file to your project and your build target(s).
 
 Call the function `heapstat()` to print out heap leakage info. It also returns the total number of bytes leaked.
 
