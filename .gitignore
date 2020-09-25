@@ -1,2 +1,2 @@
-heapstat.dSYM/Contents/Info.plist
-heapstat.dSYM/Contents/Resources/DWARF/heapstat
+*.dSYM
+*.o
