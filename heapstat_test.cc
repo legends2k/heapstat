@@ -1,4 +1,4 @@
-#include "heapstat.hh"
+#include "heapstat.h"
 
 int main()
 {
