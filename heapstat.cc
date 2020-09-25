@@ -2,8 +2,11 @@
 #include <cstdio>
 #include <cmath>
 
-#define HEAPSTAT_DISABLE
-#include "heapstat.hh"
+#include "heapstat.h"
+#undef new
+#undef malloc
+#undef realloc
+#undef free
 
 static void format(char* buf, double num)
 {
@@ -20,7 +23,9 @@ static void format(char* buf, double num)
     }
 }
 
+#define MAGIC UINT64_MAX - 31
 struct _PtrHeader {
+    size_t magic, magic2;
     size_t size : 63, visited : 1;
     const char* desc;
     _PtrHeader *next, *prev;
@@ -39,6 +44,8 @@ static void addHeader(size_t size, const char* desc, void* ret)
     _PtrHeader* head = (_PtrHeader*)ret;
     head->size = size;
     head->desc = desc;
+    head->magic = MAGIC;
+    head->magic2 = MAGIC;
     head->prev = lastHeader;
     if (lastHeader)
         lastHeader->next = head;
@@ -58,25 +65,36 @@ void* heapstat_malloc(size_t size, const char* desc)
 
 void* heapstat_realloc(void* ptr, size_t size, const char* desc)
 {
-    void* ret = (void*)((char*)ret - sizeof(_PtrHeader));
-    ret = realloc(ptr, size);
+    void* ret = (void*)((char*)ptr - sizeof(_PtrHeader));
+    ret = realloc(ret, size + sizeof(_PtrHeader));
     if (ret) { addHeader(size, desc, ret); }
     return (void*)((char*)ret + sizeof(_PtrHeader));
 }
 
-void heapstat_free(void* ptr)
+void heapstat_free(void* ptr, const char* desc)
 {
     if (!ptr) return;
     void* ret = (void*)((char*)ptr - sizeof(_PtrHeader));
 
     _PtrHeader* head = (_PtrHeader*)ret;
-    _PtrHeader *next = head->next, *prev = head->prev;
-    if (head->prev) head->prev->next = next;
-    if (head->next) head->next->prev = prev;
-    if (head == lastHeader) lastHeader = prev;
-    if (head == startHeader) startHeader = next;
-    _heapTotal -= head->size;
-    free(head);
+    if (head->magic == MAGIC && head->magic2 == MAGIC) {
+        _PtrHeader *next = head->next, *prev = head->prev;
+        if (head->prev) head->prev->next = next;
+        if (head->next) head->next->prev = prev;
+        if (head == lastHeader) lastHeader = prev;
+        if (head == startHeader) startHeader = next;
+        _heapTotal -= head->size;
+        head->magic = head->magic2 = 0;
+        free(head);
+    } else {
+        fprintf(stderr,
+            "-- WARNING --------------------------------------\n"
+            "freeing unknown pointer %p\n"
+            "  at %s\n"
+            "-------------------------------------------------\n",
+            head, desc);
+        free(ptr);
+    }
 }
 
 size_t heapstat()
@@ -97,8 +115,7 @@ size_t heapstat()
             if (inner->desc != desc) continue;
             inner->visited = 1;
             size += inner->size;
-            count++;
-            gcount++;
+            count++, gcount++;
         }
 
         char valSumH[24] = "                       ";
@@ -111,9 +128,19 @@ size_t heapstat()
     puts("--------------------------------------------------------------");
     char strsum[24] = "                       ";
     format(strsum, _heapTotal);
-    printf("%11lu | %14s | %s\n", gcount, strsum, "total");
-    puts("");
+    printf("%11lu | %14s | total\n\n", gcount, strsum);
     return _heapTotal;
 }
 
 } // extern "C"
+
+void* operator new(size_t size, const char* desc)
+{
+    return heapstat_malloc(size, desc);
+}
+void* operator new[](size_t size, const char* desc)
+{
+    return heapstat_malloc(size, desc);
+}
+void operator delete(void* ptr) throw() { heapstat_free(ptr, "<unknown>"); }
+void operator delete[](void* ptr) throw() { heapstat_free(ptr, "<unknown>"); }
