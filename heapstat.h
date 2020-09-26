@@ -487,14 +487,13 @@ static inline int __ac_Wang_hash(int key)
 */
 
 #define HPST_STR(X) #X
-#define HPST_SPOT(x, fil, lin) fil ":" HPST_STR(lin) ": " x
+#define HPST_SPOT(fil, lin) fil ":" HPST_STR(lin)
 
 #include <stdlib.h> // FIXME: need this just for size_t!!!
 #include <stdint.h>
 
-#define heapstat_malloc(sz, nam)                                               \
-    heapstat__malloc(sz, HPST_SPOT(nam, __FILE__, __LINE__))
-#define heapstat_free(x) heapstat__free(x, HPST_SPOT(#x, __FILE__, __LINE__))
+#define heapstat_malloc(sz) heapstat__malloc(sz, HPST_SPOT(__FILE__, __LINE__))
+#define heapstat_free(x) heapstat__free(x, HPST_SPOT(__FILE__, __LINE__))
 
 #ifdef __cplusplus
 void* operator new(size_t size, const char* desc);
@@ -515,5 +514,5 @@ size_t heapstat();
 }
 #endif
 
-#define malloc(s) heapstat_malloc(s, "?")
+#define malloc(s) heapstat_malloc(s)
 #define free(ptr) heapstat_free(ptr)

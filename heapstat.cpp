@@ -90,6 +90,14 @@ void* heapstat__malloc(size_t size, const char* desc)
     return ret;
 }
 
+void heapstat_reset()
+{
+    Dict_freedata(Ptr, _PtrInfo)(_ptrDict);
+    // _PtrInfo blank = {};
+    memset(_ptrDict, 0, sizeof(_PtrInfo));
+    // *_ptrDict = blank;
+}
+
 size_t heapstat()
 {
     // int i = 0;
@@ -133,9 +141,25 @@ size_t heapstat()
     // human_readable(strsum, sum);
     printf("%11d | %14s | %s\n", Dict_size(_ptrDict), strsum, "total");
     Dict_clear(CString, _Stat)(_statDict);
+
+#define DictMemUsage(K, V, dict)                                               \
+    (Dict_nBuckets(dict) * (sizeof(K) + sizeof(V))                             \
+        + Dict__flagsSize(Dict_nBuckets(dict)))
+
+    size_t ownUsage = DictMemUsage(Ptr, _PtrInfo, _ptrDict)
+        + DictMemUsage(CString, _Stat, _statDict);
+
+    char ownbuf[24];
+    format(ownbuf, ownUsage);
+    printf("\nHeapstat's own usage is extra: %s B\n  %d pointer buckets (%d "
+           "pointers)\n  %d stat buckets (%d stats)\n",
+        ownbuf, Dict_nBuckets(_ptrDict), Dict_size(_ptrDict),
+        Dict_nBuckets(_statDict), Dict_size(_statDict));
+
     free(indxs);
 
     return sum;
+#undef DictMemUsage
 }
 
 #ifdef __cplusplus
