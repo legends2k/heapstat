@@ -102,45 +102,49 @@ size_t heapstat()
 {
     // int i = 0;
     size_t sum = 0;
-    if (!Dict_size(_ptrDict)) {
-        puts("0 LEAKS");
-        return 0;
-    }
-    int stat[1];
+    if (Dict_size(_ptrDict)) {
 
-    Dict_foreach(_ptrDict, Ptr key, _PtrInfo val, {
-        int d = Dict_put(CString, _Stat)(_statDict, val.desc, stat);
-        if (*stat) {
-            Dict_val(_statDict, d).sum = 0;
-            Dict_val(_statDict, d).count = 0;
+        int stat[1];
+
+        Dict_foreach(_ptrDict, Ptr key, _PtrInfo val, {
+            int d = Dict_put(CString, _Stat)(_statDict, val.desc, stat);
+            if (*stat) {
+                Dict_val(_statDict, d).sum = 0;
+                Dict_val(_statDict, d).count = 0;
+            }
+            Dict_val(_statDict, d).sum += val.size;
+            Dict_val(_statDict, d).count++;
+            sum += val.size;
+        });
+
+        int i = 0, *indxs = (int*)malloc(_statDict->size * sizeof(int));
+        Dict_foreach(_statDict, CString key, _Stat val, { indxs[i++] = _i_; });
+        qsort(indxs, _statDict->size, sizeof(int), _cmpsum);
+        printf("\n%d LEAKS, %d LOCATIONS\n", Dict_size(_ptrDict),
+            Dict_size(_statDict));
+
+        puts("--------------------------------------------------------------");
+        puts("      Count |       Size (B) | Location                       ");
+        puts("==============================================================");
+        for (i = 0; i < _statDict->size; i++) {
+            CString key = _statDict->keys[indxs[i]];
+            _Stat val = _statDict->vals[indxs[i]];
+            char valsum[24];
+            format(valsum, val.sum);
+            printf("%11zu | %14s | %s\n", val.count, valsum, key);
         }
-        Dict_val(_statDict, d).sum += val.size;
-        Dict_val(_statDict, d).count++;
-        sum += val.size;
-    });
+        puts("----------------------------------------------------------");
+        char strsum[24] = "                       ";
+        format(strsum, _heapTotal);
+        // human_readable(strsum, sum);
+        printf("%11d | %14s | %s\n", Dict_size(_ptrDict), strsum, "total");
+        Dict_clear(CString, _Stat)(_statDict);
 
-    int i = 0, *indxs = (int*)malloc(_statDict->size * sizeof(int));
-    Dict_foreach(_statDict, CString key, _Stat val, { indxs[i++] = _i_; });
-    qsort(indxs, _statDict->size, sizeof(int), _cmpsum);
-    printf("\n%d LEAKS, %d LOCATIONS\n", Dict_size(_ptrDict),
-        Dict_size(_statDict));
-
-    puts("--------------------------------------------------------------");
-    puts("      Count |       Size (B) | Location                       ");
-    puts("==============================================================");
-    for (i = 0; i < _statDict->size; i++) {
-        CString key = _statDict->keys[indxs[i]];
-        _Stat val = _statDict->vals[indxs[i]];
-        char valsum[24];
-        format(valsum, val.sum);
-        printf("%11zu | %14s | %s\n", val.count, valsum, key);
+        free(indxs);
+        // return sum;
+    } else {
+        puts("0 LEAKS");
     }
-    puts("----------------------------------------------------------");
-    char strsum[24] = "                       ";
-    format(strsum, _heapTotal);
-    // human_readable(strsum, sum);
-    printf("%11d | %14s | %s\n", Dict_size(_ptrDict), strsum, "total");
-    Dict_clear(CString, _Stat)(_statDict);
 
 #define DictMemUsage(K, V, dict)                                               \
     (Dict_nBuckets(dict) * (sizeof(K) + sizeof(V))                             \
@@ -156,10 +160,8 @@ size_t heapstat()
         ownbuf, Dict_nBuckets(_ptrDict), Dict_size(_ptrDict),
         Dict_nBuckets(_statDict), Dict_size(_statDict));
 
-    free(indxs);
-
-    return sum;
 #undef DictMemUsage
+    return sum;
 }
 
 #ifdef __cplusplus
