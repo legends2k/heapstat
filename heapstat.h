@@ -103,7 +103,7 @@ static const double Dict_HASH_UPPER = 0.77;
 #define __DICT_IMPL(Scope, K, V, IsMap, hash, equal)                           \
     Scope Dict(K, V) * Dict_init(K, V)()                                       \
     {                                                                          \
-        return calloc(1, sizeof(Dict(K, V)));                                  \
+        return (Dict(K, V)*)calloc(1, sizeof(Dict(K, V)));                     \
     }                                                                          \
     Scope void Dict_freedata(K, V)(Dict(K, V) * h)                             \
     {                                                                          \
@@ -155,19 +155,21 @@ static const double Dict_HASH_UPPER = 0.77;
             if (h->size >= (int)(nnBuckets * Dict_HASH_UPPER + 0.5))           \
                 j = 0; /* requested size is too small */                       \
             else { /* size to be changed (shrink or expand); rehash */         \
-                nFlags = malloc(Dict__flagsSize(nnBuckets) * sizeof(int));     \
+                nFlags                                                         \
+                    = (int*)malloc(Dict__flagsSize(nnBuckets) * sizeof(int));  \
                 if (!nFlags) return -1;                                        \
                 memset(                                                        \
                     nFlags, 0xAA, Dict__flagsSize(nnBuckets) * sizeof(int));   \
                 if (h->nBuckets < nnBuckets) { /* expand */                    \
-                    K* nKeys = realloc(h->keys, nnBuckets * sizeof(K));        \
+                    K* nKeys = (K*)realloc(h->keys, nnBuckets * sizeof(K));    \
                     if (!nKeys) {                                              \
                         free(nFlags);                                          \
                         return -1;                                             \
                     }                                                          \
                     h->keys = nKeys;                                           \
                     if (IsMap) {                                               \
-                        V* nVals = realloc(h->vals, nnBuckets * sizeof(V));    \
+                        V* nVals                                               \
+                            = (V*)realloc(h->vals, nnBuckets * sizeof(V));     \
                         if (!nVals) {                                          \
                             free(nFlags);                                      \
                             return -1;                                         \
@@ -219,8 +221,9 @@ static const double Dict_HASH_UPPER = 0.77;
                 }                                                              \
             }                                                                  \
             if (h->nBuckets > nnBuckets) { /* shrink the hash table */         \
-                h->keys = realloc(h->keys, nnBuckets * sizeof(K));             \
-                if (IsMap) h->vals = realloc(h->vals, nnBuckets * sizeof(V));  \
+                h->keys = (K*)realloc(h->keys, nnBuckets * sizeof(K));         \
+                if (IsMap)                                                     \
+                    h->vals = (V*)realloc(h->vals, nnBuckets * sizeof(V));     \
             }                                                                  \
             free(h->flags); /* free the working space */                       \
             h->flags = nFlags;                                                 \
@@ -484,12 +487,14 @@ static inline int __ac_Wang_hash(int key)
 */
 
 #define HPST_STR(X) #X
-#define HPST_SPOT(x, fn, fil, lin) fil ":" HPST_STR(lin) ": " x
+#define HPST_SPOT(x, fil, lin) fil ":" HPST_STR(lin) ": " x
 
-#define heapstat_malloc(nam, sz)                                               \
-    heapstat__malloc(sz, HPST_SPOT(nam, __func__, __FILE__, __LINE__))
-#define heapstat_free(x)                                                       \
-    heapstat__free(x, HPST_SPOT(#x, __func__, __FILE__, __LINE__))
+#include <stdlib.h> // FIXME: need this just for size_t!!!
+#include <stdint.h>
+
+#define heapstat_malloc(sz, nam)                                               \
+    heapstat__malloc(sz, HPST_SPOT(nam, __FILE__, __LINE__))
+#define heapstat_free(x) heapstat__free(x, HPST_SPOT(#x, __FILE__, __LINE__))
 
 #ifdef __cplusplus
 void* operator new(size_t size, const char* desc);
@@ -497,12 +502,10 @@ void* operator new[](size_t size, const char* desc);
 void operator delete(void* ptr) throw();
 void operator delete[](void* ptr) throw();
 
-#define new new (SPOT(__FILE__, __LINE__))
+#define new new (HPST_SPOT(__FILE__, __LINE__))
 
 extern "C" {
 #endif
-
-#include <stdlib.h> // FIXME: need this just for size_t!!!
 
 void* heapstat__malloc(size_t size, const char* desc);
 void heapstat__free(void* ptr, const char* desc);
@@ -512,5 +515,5 @@ size_t heapstat();
 }
 #endif
 
-#define malloc(s) heapstat_malloc("?", s)
+#define malloc(s) heapstat_malloc(s, "?")
 #define free(ptr) heapstat_free(ptr)

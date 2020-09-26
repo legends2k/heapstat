@@ -1,6 +1,7 @@
 #include "heapstat.h"
 #undef malloc
 #undef free
+#undef new
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -50,6 +51,9 @@ static void format(char* buf, double num)
         if (!(i % 3)) *buf-- = '\'';
     }
 }
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void heapstat__free(void* ptr, const char* desc)
 {
@@ -107,7 +111,7 @@ size_t heapstat()
         sum += val.size;
     });
 
-    int i = 0, *indxs = malloc(_statDict->size * sizeof(int));
+    int i = 0, *indxs = (int*)malloc(_statDict->size * sizeof(int));
     Dict_foreach(_statDict, CString key, _Stat val, { indxs[i++] = _i_; });
     qsort(indxs, _statDict->size, sizeof(int), _cmpsum);
     printf("\n%d LEAKS, %d LOCATIONS\n", Dict_size(_ptrDict),
@@ -139,13 +143,13 @@ size_t heapstat()
 
 void* operator new(size_t size, const char* desc)
 {
-    return heapstat_malloc(size, desc);
+    return heapstat__malloc(size, desc);
 }
 void* operator new[](size_t size, const char* desc)
 {
-    return heapstat_malloc(size, desc);
+    return heapstat__malloc(size, desc);
 }
-void operator delete(void* ptr) throw() { heapstat_free(ptr, "/"); }
-void operator delete[](void* ptr) throw() { heapstat_free(ptr, "/"); }
+void operator delete(void* ptr) throw() { heapstat_free(ptr); }
+void operator delete[](void* ptr) throw() { heapstat_free(ptr); }
 
 #endif
