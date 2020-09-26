@@ -4,8 +4,12 @@
 #include <iostream>
 #include <cmath>
 
-#define HEAPSTAT_DISABLE
+// #define HEAPSTAT_DISABLE
 #include "heapstat.hh"
+#undef new
+#undef malloc
+#undef realloc
+#undef free
 
 static void format(char* buf, double num)
 {
@@ -67,12 +71,13 @@ extern "C" {
 void* heapstat_malloc(size_t size, const char* desc)
 {
     void* ret = malloc(size);
+    // return 0;
     if (ret) {
         _heapTotal += size;
-        _PtrInfo info = { //
-            .size = size,
-            .desc = desc
-        };
+        _PtrInfo info; // = { //
+        info.size = size;
+        info.desc = desc;
+        // };
         ptrMap[ret] = info;
     }
     return ret;
@@ -82,13 +87,13 @@ void* heapstat_realloc(void* ptr, size_t size, const char* desc)
 {
     void* ret = realloc(ptr, size);
     if (ret) {
-        auto item = ptrMap.find(ptr);
+        map<void*, _PtrInfo>::iterator item = ptrMap.find(ptr);
         if (item != ptrMap.end()) _heapTotal -= item->second.size;
         _heapTotal += size;
-        _PtrInfo info = { //
-            .size = size,
-            .desc = desc
-        };
+        _PtrInfo info; //= { //
+        info.size = size;
+        info.desc = desc;
+        // };
         ptrMap[ret] = info;
     }
     return ret;
@@ -96,10 +101,10 @@ void* heapstat_realloc(void* ptr, size_t size, const char* desc)
 
 void heapstat_free(void* ptr, const char* desc)
 {
-    auto item = ptrMap.find(ptr);
+    map<void*, _PtrInfo>::iterator item = ptrMap.find(ptr);
     if (item != ptrMap.end()) {
         free(ptr);
-        _heapTotal -= item->second.size;
+        // _heapTotal -= item->second.size;
         ptrMap.erase(item);
     } else if (desc and *desc != '/') {
         printf("\nWARNING\nfreeing unknown or freed pointer %p\n  at %s\n", ptr,
@@ -113,32 +118,35 @@ size_t heapstat()
     if (ptrMap.empty()) return 0;
     printf("\n%lu HEAP ALLOCATIONS LEAKED\n", ptrMap.size());
 
-    map<string, _Stats> statsMap;
-    for (auto kv : ptrMap) {
-        const char* desc = kv.second.desc;
-        auto d = statsMap.find(desc);
+    map<const char*, _Stats> statsMap;
+    for (map<void*, _PtrInfo>::iterator kv = ptrMap.begin(); kv != ptrMap.end();
+         kv++) {
+        const char* desc = kv->second.desc;
+        map<const char*, _Stats>::iterator d = statsMap.find(desc);
         if (d == statsMap.end()) { statsMap[desc] = _Stats(); }
-        statsMap[desc].sum += kv.second.size;
+        statsMap[desc].sum += kv->second.size;
         statsMap[desc].count++;
-        sum += kv.second.size;
+        sum += kv->second.size;
     }
     // if (statsMap.empty()) return 0;
 
     puts("--------------------------------------------------------------");
     puts("      Count |       Size (B) | Location                       ");
     puts("==============================================================");
-    for (auto kv : statsMap) {
-        string key = kv.first;
-        _Stats val = kv.second;
+    for (map<const char*, _Stats>::iterator kv = statsMap.begin();
+         kv != statsMap.end(); kv++) {
+        const char* key = kv->first;
+        _Stats val = kv->second;
         char valSumH[24] = "                       ";
         format(valSumH, val.sum);
-        printf("%11lu | %14s | %s\n", val.count, valSumH, key.c_str());
+        printf("%11lu | %14s | %s\n", val.count, valSumH, key);
     }
     puts("--------------------------------------------------------------");
     char strsum[24] = "                       ";
     format(strsum, sum);
     // human_readable(strsum, sum);
     printf("%11lu | %14s | %s\n", ptrMap.size(), strsum, "total");
+    // printf("Cumulative allocs: %lu B\n", _heapTotal);
     // printf("Leaked %s B total", strsum);
     // if (sum >= 1024) printf(" (%luB)", sum);
     puts("");
@@ -146,3 +154,14 @@ size_t heapstat()
 }
 
 } // extern "C"
+
+void* operator new(size_t size, const char* desc)
+{
+    return heapstat_malloc(size, desc);
+}
+void* operator new[](size_t size, const char* desc)
+{
+    return heapstat_malloc(size, desc);
+}
+void operator delete(void* ptr) throw() { heapstat_free(ptr, "/"); }
+void operator delete[](void* ptr) throw() { heapstat_free(ptr, "/"); }

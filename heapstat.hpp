@@ -26,16 +26,10 @@ size_t heapstat();
 #define malloc(sz) heapstat_malloc((sz), SPOT(__FILE__, __LINE__))
 #define realloc(ptr, sz) heapstat_realloc((ptr), (sz), SPOT(__FILE__, __LINE__))
 #define free(ptr) heapstat_free((ptr), SPOT(__FILE__, __LINE__))
-inline void* operator new(size_t size, const char* desc)
-{
-    return heapstat_malloc(size, desc);
-}
-inline void* operator new[](size_t size, const char* desc)
-{
-    return heapstat_malloc(size, desc);
-}
-void operator delete(void* ptr) noexcept { heapstat_free(ptr, "/"); }
-void operator delete[](void* ptr) noexcept { heapstat_free(ptr, "/"); }
+void* operator new(size_t size, const char* desc);
+void* operator new[](size_t size, const char* desc);
+void operator delete(void* ptr) throw();
+void operator delete[](void* ptr) throw();
 
 #define new new (SPOT(__FILE__, __LINE__))
 // #define delete delete (SPOT(__FILE__, __LINE__))
