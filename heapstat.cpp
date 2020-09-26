@@ -1,15 +1,40 @@
-#include <cstdlib>
-#include <map>
-#include <string>
-#include <iostream>
-#include <cmath>
-
-// #define HEAPSTAT_DISABLE
-#include "heapstat.hpp"
-#undef new
+#include "heapstat.h"
 #undef malloc
-#undef realloc
 #undef free
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+typedef void* Ptr;
+typedef const char* CString;
+
+typedef struct {
+    size_t size;
+    const char* desc;
+} _PtrInfo;
+MAKE_DICT(Ptr, _PtrInfo)
+static Dict(Ptr, _PtrInfo) _ptrDict[1];
+
+typedef struct {
+    size_t count, sum;
+} _Stat;
+MAKE_DICT(CString, _Stat)
+static Dict(CString, _Stat) _statDict[1];
+
+static size_t _heapTotal = 0;
+
+static int _cmpsum(const void* a, const void* b)
+{
+    // For sorting in descending order of sum
+    int ia = *(int*)a;
+    int ib = *(int*)b;
+    size_t va = Dict_val(_statDict, ia).sum;
+    size_t vb = Dict_val(_statDict, ib).sum;
+    return va > vb ? -1 : va == vb ? 0 : 1;
+}
 
 static void format(char* buf, double num)
 {
@@ -26,133 +51,90 @@ static void format(char* buf, double num)
     }
 }
 
-// display first "digits" many digits of number plus unit (kilo-exabytes)
-static int human_readable(char* buf, double num)
+void heapstat__free(void* ptr, const char* desc)
 {
-    size_t snap = 0;
-    size_t orig = num;
-    int unit = 0;
-    while (num >= 1000) {
-        num /= 1024;
-        unit++;
+
+    int d = Dict_get(Ptr, _PtrInfo)(_ptrDict, ptr);
+    if (d < Dict_end(_ptrDict)) {
+        // if (! Dict_val(_ptrDict, d).heap) {
+        //     printf("free non-heap pointer at %s\n", desc);
+        // } else {
+        free(ptr);
+        _heapTotal -= Dict_val(_ptrDict, d).size;
+        Dict_delete(Ptr, _PtrInfo)(_ptrDict, d);
+        // }
+    } else {
+        puts("\n-- WARNING -----------------------------------------------");
+        printf("freeing unknown pointer at %s\n", desc);
+        puts("----------------------------------------------------------");
     }
-    int len;
-    if (unit && num < 100.0)
-        len = snprintf(buf, 8, "%.3g", num);
-    else
-        len = snprintf(buf, 8, "%d", (int)num);
-
-    unit = "\0kMGTPEZY"[unit];
-
-    if (unit) buf[len++] = unit;
-    buf[len++] = 'B';
-    buf[len] = 0;
-
-    return len;
 }
 
-struct _PtrInfo {
-    size_t size;
-    const char* desc;
-};
-
-struct _Stats {
-    size_t count, sum;
-};
-
-using std::map;
-using std::string;
-
-static map<void*, _PtrInfo> ptrMap;
-static size_t _heapTotal = 0;
-
-extern "C" {
-
-void* heapstat_malloc(size_t size, const char* desc)
+void* heapstat__malloc(size_t size, const char* desc)
 {
     void* ret = malloc(size);
-    // return 0;
     if (ret) {
+        int stat[1];
         _heapTotal += size;
-        _PtrInfo info; // = { //
-        info.size = size;
-        info.desc = desc;
-        // };
-        ptrMap[ret] = info;
+        _PtrInfo inf = { //
+            .size = size,
+            .desc = desc
+        };
+        int p = Dict_put(Ptr, _PtrInfo)(_ptrDict, ret, stat);
+        Dict_val(_ptrDict, p) = inf;
     }
     return ret;
-}
-
-void* heapstat_realloc(void* ptr, size_t size, const char* desc)
-{
-    void* ret = realloc(ptr, size);
-    if (ret) {
-        map<void*, _PtrInfo>::iterator item = ptrMap.find(ptr);
-        if (item != ptrMap.end()) _heapTotal -= item->second.size;
-        _heapTotal += size;
-        _PtrInfo info; //= { //
-        info.size = size;
-        info.desc = desc;
-        // };
-        ptrMap[ret] = info;
-    }
-    return ret;
-}
-
-void heapstat_free(void* ptr, const char* desc)
-{
-    map<void*, _PtrInfo>::iterator item = ptrMap.find(ptr);
-    if (item != ptrMap.end()) {
-        free(ptr);
-        // _heapTotal -= item->second.size;
-        ptrMap.erase(item);
-    } else if (desc and *desc != '/') {
-        printf("\nWARNING\nfreeing unknown or freed pointer %p\n  at %s\n", ptr,
-            desc);
-    }
 }
 
 size_t heapstat()
 {
+    // int i = 0;
     size_t sum = 0;
-    if (ptrMap.empty()) return 0;
-    printf("\n%lu HEAP ALLOCATIONS LEAKED\n", ptrMap.size());
-
-    map<const char*, _Stats> statsMap;
-    for (map<void*, _PtrInfo>::iterator kv = ptrMap.begin(); kv != ptrMap.end();
-         kv++) {
-        const char* desc = kv->second.desc;
-        map<const char*, _Stats>::iterator d = statsMap.find(desc);
-        if (d == statsMap.end()) { statsMap[desc] = _Stats(); }
-        statsMap[desc].sum += kv->second.size;
-        statsMap[desc].count++;
-        sum += kv->second.size;
+    if (!Dict_size(_ptrDict)) {
+        puts("0 LEAKS");
+        return 0;
     }
-    // if (statsMap.empty()) return 0;
+    int stat[1];
+
+    Dict_foreach(_ptrDict, Ptr key, _PtrInfo val, {
+        int d = Dict_put(CString, _Stat)(_statDict, val.desc, stat);
+        if (*stat) {
+            Dict_val(_statDict, d).sum = 0;
+            Dict_val(_statDict, d).count = 0;
+        }
+        Dict_val(_statDict, d).sum += val.size;
+        Dict_val(_statDict, d).count++;
+        sum += val.size;
+    });
+
+    int i = 0, *indxs = malloc(_statDict->size * sizeof(int));
+    Dict_foreach(_statDict, CString key, _Stat val, { indxs[i++] = _i_; });
+    qsort(indxs, _statDict->size, sizeof(int), _cmpsum);
+    printf("\n%d LEAKS, %d LOCATIONS\n", Dict_size(_ptrDict),
+        Dict_size(_statDict));
 
     puts("--------------------------------------------------------------");
     puts("      Count |       Size (B) | Location                       ");
     puts("==============================================================");
-    for (map<const char*, _Stats>::iterator kv = statsMap.begin();
-         kv != statsMap.end(); kv++) {
-        const char* key = kv->first;
-        _Stats val = kv->second;
-        char valSumH[24] = "                       ";
-        format(valSumH, val.sum);
-        printf("%11lu | %14s | %s\n", val.count, valSumH, key);
+    for (i = 0; i < _statDict->size; i++) {
+        CString key = _statDict->keys[indxs[i]];
+        _Stat val = _statDict->vals[indxs[i]];
+        char valsum[24];
+        format(valsum, val.sum);
+        printf("%11zu | %14s | %s\n", val.count, valsum, key);
     }
-    puts("--------------------------------------------------------------");
+    puts("----------------------------------------------------------");
     char strsum[24] = "                       ";
-    format(strsum, sum);
+    format(strsum, _heapTotal);
     // human_readable(strsum, sum);
-    printf("%11lu | %14s | %s\n", ptrMap.size(), strsum, "total");
-    // printf("Cumulative allocs: %lu B\n", _heapTotal);
-    // printf("Leaked %s B total", strsum);
-    // if (sum >= 1024) printf(" (%luB)", sum);
-    puts("");
+    printf("%11d | %14s | %s\n", Dict_size(_ptrDict), strsum, "total");
+    Dict_clear(CString, _Stat)(_statDict);
+    free(indxs);
+
     return sum;
 }
 
+#ifdef __cplusplus
 } // extern "C"
 
 void* operator new(size_t size, const char* desc)
@@ -165,3 +147,5 @@ void* operator new[](size_t size, const char* desc)
 }
 void operator delete(void* ptr) throw() { heapstat_free(ptr, "/"); }
 void operator delete[](void* ptr) throw() { heapstat_free(ptr, "/"); }
+
+#endif
