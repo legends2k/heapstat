@@ -5,7 +5,7 @@
 #include <cmath>
 
 // #define HEAPSTAT_DISABLE
-#include "heapstat.hh"
+#include "heapstat.hpp"
 #undef new
 #undef malloc
 #undef realloc
