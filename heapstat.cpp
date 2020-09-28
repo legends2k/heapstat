@@ -51,26 +51,23 @@ static void format(char* buf, double num)
         if (!(i % 3)) *buf-- = '\'';
     }
 }
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void heapstat__free(void* ptr, const char* desc)
 {
-
     int d = Dict_get(Ptr, _PtrInfo)(_ptrDict, ptr);
     if (d < Dict_end(_ptrDict)) {
-        // if (! Dict_val(_ptrDict, d).heap) {
-        //     printf("free non-heap pointer at %s\n", desc);
-        // } else {
         free(ptr);
         _heapTotal -= Dict_val(_ptrDict, d).size;
         Dict_delete(Ptr, _PtrInfo)(_ptrDict, d);
-        // }
     } else {
-        puts("\n-- WARNING -----------------------------------------------");
-        printf("freeing unknown pointer at %s\n", desc);
-        puts("----------------------------------------------------------");
+        // puts("\n-- WARNING -----------------------------------------------");
+        printf("*** freeing unknown pointer at:\n  %s\n", desc);
+        // puts("----------------------------------------------------------");
+        free(ptr);
     }
 }
 
@@ -80,10 +77,9 @@ void* heapstat__malloc(size_t size, const char* desc)
     if (ret) {
         int stat[1];
         _heapTotal += size;
-        _PtrInfo inf = { //
-            .size = size,
-            .desc = desc
-        };
+        _PtrInfo inf;
+        inf.size = size;
+        inf.desc = desc;
         int p = Dict_put(Ptr, _PtrInfo)(_ptrDict, ret, stat);
         Dict_val(_ptrDict, p) = inf;
     }
@@ -93,14 +89,14 @@ void* heapstat__malloc(size_t size, const char* desc)
 void heapstat_reset()
 {
     Dict_freedata(Ptr, _PtrInfo)(_ptrDict);
-    // _PtrInfo blank = {};
-    memset(_ptrDict, 0, sizeof(_PtrInfo));
-    // *_ptrDict = blank;
+    _ptrDict->nBuckets = _ptrDict->nOccupied = _ptrDict->size = 0;
+    _ptrDict->keys = NULL;
+    _ptrDict->vals = NULL;
+    _ptrDict->flags = NULL;
 }
 
 size_t heapstat()
 {
-    // int i = 0;
     size_t sum = 0;
     if (Dict_size(_ptrDict)) {
 
@@ -136,12 +132,10 @@ size_t heapstat()
         puts("----------------------------------------------------------");
         char strsum[24] = "                       ";
         format(strsum, _heapTotal);
-        // human_readable(strsum, sum);
         printf("%11d | %14s | %s\n", Dict_size(_ptrDict), strsum, "total");
         Dict_clear(CString, _Stat)(_statDict);
 
         free(indxs);
-        // return sum;
     } else {
         puts("0 LEAKS");
     }
@@ -175,7 +169,41 @@ void* operator new[](size_t size, const char* desc)
 {
     return heapstat__malloc(size, desc);
 }
-void operator delete(void* ptr) throw() { heapstat_free(ptr); }
-void operator delete[](void* ptr) throw() { heapstat_free(ptr); }
+
+#include <execinfo.h>
+
+static const char* getfunc()
+{
+    void* buffer[4];
+    char** strings;
+    const char* desc;
+
+    int nptrs = backtrace(buffer, 4);
+    // printf("backtrace() returned %d addresses\n", nptrs);
+
+    strings = backtrace_symbols(buffer, nptrs);
+    if (strings) {
+        desc = nptrs > 2 ? strings[2] : "";
+
+        // for (int j = 0; j < nptrs; j++) printf("%s\n", strings[j]);
+
+        free(strings);
+    }
+    return desc;
+}
+// using std::bad_alloc;
+#include <new>
+void* operator new(size_t size) throw(std::bad_alloc)
+{
+    return heapstat__malloc(size, getfunc());
+}
+
+void* operator new[](size_t size) throw(std::bad_alloc)
+{
+    return heapstat__malloc(size, getfunc());
+}
+
+void operator delete(void* ptr) throw() { heapstat__free(ptr, getfunc()); }
+void operator delete[](void* ptr) throw() { heapstat__free(ptr, getfunc()); }
 
 #endif
