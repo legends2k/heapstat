@@ -6,7 +6,7 @@
 
 ### 1. Add to your project
 
-Simply include the `heapstat.hh` header file in whichever source files you want to track for heap allocation or deallocation issues, and add the `heapstat.cc` file to your project and your build target(s).
+Simply include the `heapstat.h` header file in whichever source files you want to track for heap allocation or deallocation issues, and add the `heapstat.cc` file to your project and your build target(s).
 
 All calls to the default heap allocators are automatically intercepted. Heapstat works with:
 - `malloc`
@@ -28,7 +28,7 @@ Call the function `heapstat()` at any time to print out a summary of heap pointe
 ## Example (heapstat_test.cc)
 
 ```cpp
-#include "heapstat.hh"
+#include "heapstat.h"
 
 int main()
 {

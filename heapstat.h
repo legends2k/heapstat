@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // HOW TO USE HEAPSTAT:
-// 1. include the header "heapstat.hh"
+// 1. include the header "heapstat.h"
 // 2. add the file "heapstat.cc" to your C++ project and build targets
 // 3. Just call heapstat() whenever you want to check for leaks
 //    - returns (size_t): total bytes leaked over all allocations so far

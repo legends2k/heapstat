@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 #include "heapstat.h"
 #undef new
@@ -8,9 +10,9 @@
 #undef realloc
 #undef free
 
-static void format(char* buf, double num)
+static void format(char* buf, size_t num)
 {
-    int digits = log10(num + 1);
+    const int digits = static_cast<int>(log10(static_cast<double>(num + 1)));
     buf += digits + (digits / 3) + 1;
     *buf-- = 0;
     int i = 0;
@@ -19,11 +21,12 @@ static void format(char* buf, double num)
         int d = ((size_t)num) % 10;
         num /= 10;
         *buf-- = d + 48;
-        if (!(i % 3)) *buf-- = '\'';
+        if (((i % 3) == 0) && num) *buf-- = '\'';
     }
 }
 
-#define MAGIC UINT64_MAX - 31
+constexpr size_t MAGIC = std::numeric_limits<uint64_t>::max() - 31;
+
 struct _PtrHeader {
     size_t magic, magic2;
     size_t size : 63, visited : 1;
@@ -92,7 +95,7 @@ void heapstat_free(void* ptr, const char* desc)
             "freeing unknown pointer %p\n"
             "  at %s\n"
             "-------------------------------------------------\n",
-            head, desc);
+            static_cast<void*>(head), desc);
         free(ptr);
     }
 }
@@ -120,7 +123,7 @@ size_t heapstat()
 
         char valSumH[24] = "                       ";
         format(valSumH, size);
-        printf("%11lu | %14s | %s\n", count, valSumH, desc);
+        printf("%11zu | %14s | %s\n", count, valSumH, desc);
     }
     for (_PtrHeader* head = startHeader; head; head = head->next)
         head->visited = 0;
@@ -128,7 +131,7 @@ size_t heapstat()
     puts("--------------------------------------------------------------");
     char strsum[24] = "                       ";
     format(strsum, _heapTotal);
-    printf("%11lu | %14s | total\n\n", gcount, strsum);
+    printf("%11zu | %14s | total\n\n", gcount, strsum);
     return _heapTotal;
 }
 
