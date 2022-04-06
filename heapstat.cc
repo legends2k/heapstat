@@ -16,7 +16,7 @@ static void format(char* buf, size_t num)
     buf += digits + (digits / 3) + 1;
     *buf-- = 0;
     int i = 0;
-    while (num > 1) {
+    while (num > 0) {
         i++;
         int d = ((size_t)num) % 10;
         num /= 10;
