@@ -144,3 +144,11 @@ void* operator new[](size_t size, const char* desc)
 }
 void operator delete(void* ptr) throw() { heapstat_free(ptr, "<unknown>"); }
 void operator delete[](void* ptr) throw() { heapstat_free(ptr, "<unknown>"); }
+void operator delete(void* ptr, const char* desc) throw()
+{
+  heapstat_free(ptr, desc);
+}
+void operator delete[](void* ptr, const char* desc) throw()
+{
+  heapstat_free(ptr, desc);
+}

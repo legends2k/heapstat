@@ -28,6 +28,8 @@ size_t heapstat();
 #define free(ptr) heapstat_free((ptr), SPOT(__FILE__, __LINE__));
 void* operator new(size_t size, const char* desc);
 void* operator new[](size_t size, const char* desc);
+void operator delete(void* ptr, const char* desc) throw();
+void operator delete[](void* ptr, const char* desc) throw();
 void operator delete(void* ptr) throw();
 void operator delete[](void* ptr) throw();
 #define new new (SPOT(__FILE__, __LINE__))
